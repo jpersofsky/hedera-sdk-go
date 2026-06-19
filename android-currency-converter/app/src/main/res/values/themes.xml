@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme. The actual colors are supplied by Compose's
+         Material 3 theme; this is only used while the activity starts up. -->
+    <style name="Theme.CurrencyConverter" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
