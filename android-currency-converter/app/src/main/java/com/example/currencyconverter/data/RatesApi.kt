@@ -7,11 +7,15 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /**
- * Thin network client for the free, key-less Frankfurter exchange-rate API.
- * https://www.frankfurter.app/docs/
+ * Thin network client for the free, key-less open.er-api.com exchange-rate
+ * API, which covers ~160 ISO currencies. https://www.exchangerate-api.com/docs/free
  */
 class RatesApi(
     private val baseCurrency: String = "USD",
@@ -24,7 +28,7 @@ class RatesApi(
      * or parsing failure so the repository can fall back to cache.
      */
     suspend fun fetchLatest(): RatesSnapshot = withContext(Dispatchers.IO) {
-        val url = "https://api.frankfurter.app/latest?base=$baseCurrency"
+        val url = "https://open.er-api.com/v6/latest/$baseCurrency"
         val request = Request.Builder().url(url).build()
 
         client.newCall(request).execute().use { response ->
@@ -36,18 +40,25 @@ class RatesApi(
 
             val parsed = json.decodeFromString<RatesResponse>(body)
 
-            // Frankfurter omits the base currency from the rates map; add it
-            // back so conversions involving the base work uniformly.
-            val rates = parsed.rates.toMutableMap()
-            rates[parsed.base] = 1.0
+            if (parsed.result != "success" || parsed.rates.isEmpty()) {
+                throw RatesApiException("Rates service returned no data")
+            }
 
             RatesSnapshot(
-                base = parsed.base,
-                date = parsed.date,
+                base = parsed.baseCode,
+                date = formatDate(parsed.timeLastUpdateUnix),
                 fetchedAtMillis = System.currentTimeMillis(),
-                rates = rates
+                rates = parsed.rates
             )
         }
+    }
+
+    private fun formatDate(unixSeconds: Long): String {
+        if (unixSeconds <= 0L) return ""
+        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        return formatter.format(Date(unixSeconds * 1000))
     }
 
     companion object {

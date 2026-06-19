@@ -1,18 +1,22 @@
 package com.example.currencyconverter.data.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Raw response shape returned by the Frankfurter API
- * (e.g. https://api.frankfurter.app/latest?base=USD).
+ * Raw response shape returned by the free open.er-api.com endpoint
+ * (e.g. https://open.er-api.com/v6/latest/USD), which covers ~160 ISO
+ * currencies with no API key required.
  *
- * Note: the API does not include the base currency itself in [rates]
- * (its rate is implicitly 1.0); the repository adds it explicitly.
+ * Unlike some providers, this one *does* include the base currency in
+ * [rates] (with a value of 1.0).
  */
 @Serializable
 data class RatesResponse(
-    val base: String = "USD",
-    val date: String = "",
+    val result: String = "",
+    @SerialName("base_code") val baseCode: String = "USD",
+    @SerialName("time_last_update_unix") val timeLastUpdateUnix: Long = 0L,
+    @SerialName("time_last_update_utc") val timeLastUpdateUtc: String = "",
     val rates: Map<String, Double> = emptyMap()
 )
 

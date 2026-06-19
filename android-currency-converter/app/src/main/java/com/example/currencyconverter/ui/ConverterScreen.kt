@@ -145,30 +145,26 @@ private fun ConverterContent(
         modifier = Modifier.fillMaxWidth()
     )
 
-    // From / Swap / To
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    // From / Swap / To — full width and searchable.
+    SearchableCurrencyField(
+        label = "From",
+        selected = state.fromCurrency,
+        options = state.availableCurrencies,
+        onSelected = viewModel::onFromCurrencyChanged,
         modifier = Modifier.fillMaxWidth()
-    ) {
-        CurrencyDropdown(
-            label = "From",
-            selected = state.fromCurrency,
-            options = state.availableCurrencies,
-            onSelected = viewModel::onFromCurrencyChanged,
-            modifier = Modifier.weight(1f)
-        )
+    )
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         FilledTonalIconButton(onClick = viewModel::swapCurrencies) {
             Icon(Icons.Filled.SwapVert, contentDescription = "Swap currencies")
         }
-        CurrencyDropdown(
-            label = "To",
-            selected = state.toCurrency,
-            options = state.availableCurrencies,
-            onSelected = viewModel::onToCurrencyChanged,
-            modifier = Modifier.weight(1f)
-        )
     }
+    SearchableCurrencyField(
+        label = "To",
+        selected = state.toCurrency,
+        options = state.availableCurrencies,
+        onSelected = viewModel::onToCurrencyChanged,
+        modifier = Modifier.fillMaxWidth()
+    )
 
     ResultCard(state = state)
 }
@@ -246,9 +242,14 @@ private fun ResultCard(state: ConverterUiState) {
     }
 }
 
+/**
+ * A full-width currency picker you can search by typing the first few letters
+ * of the code (e.g. "eu") or the name (e.g. "yen"). Prefix matches on the code
+ * are surfaced first.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CurrencyDropdown(
+private fun SearchableCurrencyField(
     label: String,
     selected: String,
     options: List<String>,
@@ -256,17 +257,40 @@ private fun CurrencyDropdown(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+
+    val matches = remember(query, options) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) {
+            options
+        } else {
+            options
+                .filter { code ->
+                    code.lowercase().contains(q) ||
+                        Currencies.nameFor(code).lowercase().contains(q)
+                }
+                .sortedBy { code -> if (code.lowercase().startsWith(q)) 0 else 1 }
+        }
+    }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = it },
+        onExpandedChange = { open ->
+            expanded = open
+            if (!open) query = ""
+        },
         modifier = modifier
     ) {
         OutlinedTextField(
-            value = selected,
-            onValueChange = {},
-            readOnly = true,
+            // When searching, show what the user typed; otherwise the selection.
+            value = if (expanded) query else "$selected — ${Currencies.nameFor(selected)}",
+            onValueChange = {
+                query = it
+                expanded = true
+            },
+            singleLine = true,
             label = { Text(label) },
+            placeholder = { Text("Search currency…") },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -276,16 +300,28 @@ private fun CurrencyDropdown(
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = {
+                expanded = false
+                query = ""
+            }
         ) {
-            options.forEach { code ->
+            if (matches.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("$code — ${Currencies.nameFor(code)}") },
-                    onClick = {
-                        onSelected(code)
-                        expanded = false
-                    }
+                    text = { Text("No matching currency") },
+                    onClick = {},
+                    enabled = false
                 )
+            } else {
+                matches.forEach { code ->
+                    DropdownMenuItem(
+                        text = { Text("$code — ${Currencies.nameFor(code)}") },
+                        onClick = {
+                            onSelected(code)
+                            query = ""
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }
